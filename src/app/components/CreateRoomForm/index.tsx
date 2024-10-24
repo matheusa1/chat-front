@@ -1,5 +1,8 @@
 'use client'
 
+import { TCreateRoomSchema } from '@/@core/modules/room/entities/entity'
+import { createRoomSchema } from '@/@core/modules/room/schemas/createRoom.schema'
+import { createRoomApi } from '@/@core/modules/room/service/service'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -21,19 +24,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { FC } from 'react'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-
-const createRoomSchema = z.object({
-  name: z.string({ required_error: 'Nome da sala é obrigatório' }),
-  description: z.string({ required_error: 'Descrição da sala é obrigatória' }),
-})
-
-type TCreateRoomSchema = z.infer<typeof createRoomSchema>
+import { toast } from 'sonner'
 
 const CreateRoomForm: FC = () => {
+  const queryClient = useQueryClient()
   const form = useForm<TCreateRoomSchema>({
     resolver: zodResolver(createRoomSchema),
     defaultValues: {
@@ -42,8 +40,26 @@ const CreateRoomForm: FC = () => {
     },
   })
 
+  const { mutateAsync: createRoomFn, isPending } = useMutation({
+    mutationKey: ['createRoom'],
+    mutationFn: createRoomApi,
+    onSuccess: () => {
+      form.reset()
+      toast.success('Sala criada com sucesso!', {
+        position: 'top-right',
+        richColors: true,
+      })
+      queryClient.refetchQueries({
+        queryKey: ['roomsList'],
+      })
+    },
+    onError: (err) => {
+      console.log(err)
+    },
+  })
+
   const onHandleCreateRoom = (data: TCreateRoomSchema) => {
-    console.log(data)
+    createRoomFn(data)
   }
 
   return (
@@ -89,7 +105,9 @@ const CreateRoomForm: FC = () => {
             />
           </CardContent>
           <CardFooter>
-            <Button type="submit">Criar sala</Button>
+            <Button type="submit" loading={isPending}>
+              Criar sala
+            </Button>
           </CardFooter>
         </Card>
       </form>
