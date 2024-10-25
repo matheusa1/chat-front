@@ -55,8 +55,6 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
     },
   })
 
-  console.log(changeNameForm.formState.errors)
-
   const getRoomData = useCallback(async () => {
     const room = await getRoomApi(id)
     setRoomData(room)
