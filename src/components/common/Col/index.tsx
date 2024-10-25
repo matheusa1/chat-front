@@ -29,11 +29,17 @@ const colVariants = cva('flex flex-col space-y-4', {
 
 export interface ColProps
   extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof colVariants> {}
+    VariantProps<typeof colVariants> {
+  ref?: React.Ref<HTMLDivElement>
+}
 
-const Col: FC<ColProps> = ({ align, justify, className, ...props }) => {
+const Col: FC<ColProps> = ({ align, justify, className, ref, ...props }) => {
   return (
-    <div className={cn(colVariants({ align, justify, className }))}>
+    <div
+      className={cn(colVariants({ align, justify, className }))}
+      ref={ref}
+      {...props}
+    >
       {props.children}
     </div>
   )

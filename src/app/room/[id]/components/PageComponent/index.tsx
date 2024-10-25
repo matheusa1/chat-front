@@ -1,5 +1,7 @@
 'use client'
 
+import { TsendMessageSchema } from '@/@core/modules/message/entities'
+import { sendMessageSchema } from '@/@core/modules/message/schemas/sendMessage'
 import { TMessage, TRoom } from '@/@core/modules/room/entities/entity'
 import { getRoomApi } from '@/@core/modules/room/service/service'
 import Col from '@/components/common/Col'
@@ -13,13 +15,20 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
+import { Form, FormControl, FormField } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useSocket } from '@/context/socketProvider'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Send } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import useSound from 'use-sound'
+import notification from '@/assets/sounds/notification.mp3'
+import { TChangeNameSchema } from '@/@core/modules/client/entities/entity'
+import { changeNameSchema } from '@/@core/modules/client/schemas/changeName'
 
 export type TPageComponent = {
   id: string
@@ -28,9 +37,25 @@ export type TPageComponent = {
 const PageComponent: React.FC<TPageComponent> = ({ id }) => {
   const { socket } = useSocket()
   const [roomData, setRoomData] = useState<TRoom>({} as TRoom)
-  const [message, setMessage] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  const form = useForm<TsendMessageSchema>({
+    resolver: zodResolver(sendMessageSchema),
+    defaultValues: {
+      content: '',
+    },
+  })
+
+  const changeNameForm = useForm<TChangeNameSchema>({
+    resolver: zodResolver(changeNameSchema),
+    defaultValues: {
+      name: '',
+    },
+  })
+
+  console.log(changeNameForm.formState.errors)
 
   const getRoomData = useCallback(async () => {
     const room = await getRoomApi(id)
@@ -41,11 +66,20 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
     getRoomData()
   }, [id])
 
-  const sendMessage = () => {
-    socket?.emit('sendMessage', {
-      content: message,
+  const changeName = (data: TChangeNameSchema) => {
+    socket?.emit('changeName', {
+      name: data.name,
       roomId: id,
     })
+  }
+
+  const sendMessage = (data: TsendMessageSchema) => {
+    socket?.emit('sendMessage', {
+      content: data.content,
+      roomId: id,
+    })
+
+    form.reset()
   }
 
   useEffect(() => {
@@ -54,6 +88,7 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
         ...prev,
         messages: [...prev.messages, data],
       }))
+      audioRef.current?.play()
     })
 
     socket?.on('userLeave', (data: { socketId: string }) => {
@@ -71,14 +106,33 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
     socket?.on('userEnter', (data: { socketId: string; name: string }) => {
       setRoomData((prev) => ({
         ...prev,
-        clients: [...prev?.clients, data],
+        clients: [...(prev?.clients as []), data],
       }))
+    })
+
+    socket?.on('changeName', (data: { socketId: string; name: string }) => {
+      setRoomData((prev) => {
+        const clients = prev.clients.map((client) => {
+          if (client.socketId === data.socketId) {
+            return {
+              ...client,
+              name: data.name,
+            }
+          }
+          return client
+        })
+        return {
+          ...prev,
+          clients: clients,
+        }
+      })
     })
 
     return () => {
       socket?.off('userEnter')
       socket?.off('userLeave')
       socket?.off('newMessage')
+      socket?.off('changeName')
     }
   }, [socket])
 
@@ -94,6 +148,7 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
         <CardContent className="size-full pt-7">
           <div className="grid grid-cols-4 h-full">
             <Layout className="py-0 col-span-3">
+              <audio src={notification} ref={audioRef} />
               <ScrollArea ref={scrollRef} className="h-[80vh]">
                 <Col justify={'start'} align={'start'} className="pr-5">
                   {roomData.messages?.map((message) => (
@@ -118,22 +173,54 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
                   ))}
                 </Col>
               </ScrollArea>
-              <Row>
-                <Input
-                  placeholder="Digite sua mensagem"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
-                <Button onClick={sendMessage} size="icon">
-                  <Send />
-                </Button>
-              </Row>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(sendMessage)}>
+                  <Row className="w-full">
+                    <FormField
+                      control={form.control}
+                      name="content"
+                      render={({ field }) => (
+                        <FormControl>
+                          <Input
+                            className="w-full"
+                            placeholder="Nome"
+                            {...field}
+                          />
+                        </FormControl>
+                      )}
+                    />
+                    <Button type={'submit'} size="icon">
+                      <Send />
+                    </Button>
+                  </Row>
+                </form>
+              </Form>
             </Layout>
 
             <Row className="size-full" align={'start'}>
               <Separator orientation="vertical" />
               <Col className="space-y-10" align={'start'} justify={'start'}>
                 Usuários
+                <Form {...changeNameForm}>
+                  <form onSubmit={changeNameForm.handleSubmit(changeName)}>
+                    <Row>
+                      <FormField
+                        control={changeNameForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormControl>
+                            <Input
+                              className="w-full"
+                              placeholder="Trocar nome"
+                              {...field}
+                            />
+                          </FormControl>
+                        )}
+                      />
+                      <Button type={'submit'}>Salvar</Button>
+                    </Row>
+                  </form>
+                </Form>
                 <Col justify={'start'} align={'start'}>
                   {roomData?.clients?.map((client) => (
                     <div className="text-zinc-400" key={client.socketId}>
