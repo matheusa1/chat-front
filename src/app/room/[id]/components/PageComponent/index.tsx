@@ -25,8 +25,9 @@ import { Send } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import useSound from 'use-sound'
 import notification from '@/assets/sounds/notification.mp3'
+import left from '@/assets/sounds/left.mp3'
+import enter from '@/assets/sounds/enter.mp3'
 import { TChangeNameSchema } from '@/@core/modules/client/entities/entity'
 import { changeNameSchema } from '@/@core/modules/client/schemas/changeName'
 
@@ -40,6 +41,8 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const audioRef = useRef<HTMLAudioElement>(null)
+  const audioLeftRef = useRef<HTMLAudioElement>(null)
+  const audioEnterRef = useRef<HTMLAudioElement>(null)
 
   const form = useForm<TsendMessageSchema>({
     resolver: zodResolver(sendMessageSchema),
@@ -84,7 +87,7 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
     socket?.on('newMessage', (data: TMessage) => {
       setRoomData((prev) => ({
         ...prev,
-        messages: [...prev.messages, data],
+        messages: [data, ...prev.messages],
       }))
       audioRef.current?.play()
     })
@@ -99,6 +102,8 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
           clients: clients,
         }
       })
+
+      audioLeftRef.current?.play()
     })
 
     socket?.on('userEnter', (data: { socketId: string; name: string }) => {
@@ -106,6 +111,8 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
         ...prev,
         clients: [...(prev?.clients as []), data],
       }))
+
+      audioEnterRef.current?.play()
     })
 
     socket?.on('changeName', (data: { socketId: string; name: string }) => {
@@ -146,20 +153,28 @@ const PageComponent: React.FC<TPageComponent> = ({ id }) => {
         <CardContent className="size-full pt-7">
           <div className="grid grid-cols-4 h-full">
             <Layout className="py-0 col-span-3">
-              <audio src={notification} ref={audioRef} />
+              <audio src={notification} ref={audioRef}>
+                <track kind="captions" />
+              </audio>
+              <audio src={left} ref={audioLeftRef}>
+                <track kind="captions" />
+              </audio>
+              <audio src={enter} ref={audioEnterRef}>
+                <track kind="captions" />
+              </audio>
               <ScrollArea ref={scrollRef} className="h-[80vh]">
-                <Col justify={'start'} align={'start'} className="pr-5">
+                <Col justify={'end'} align={'start'} className="pr-5">
                   {roomData.messages?.map((message) => (
                     <Card
                       key={`${message.sender.id}-${message.date}`}
-                      className="text-zinc-400 mb-4 w-fit data-[mine=true]:self-end"
+                      className="text-zinc-400 mb-4 w-fit data-[mine=true]:self-end animate-in"
                       data-mine={socket?.id === message.sender.id}
                     >
                       <CardContent
                         className="p-2 data-[mine=true]:bg-primary/50 rounded-lg"
                         data-mine={socket?.id === message.sender.id}
                       >
-                        <CardHeader className="px-0 py-1">
+                        <CardHeader className="px-0 py-1 text-black dark:text-white">
                           <CardTitle>{message.content}</CardTitle>
                         </CardHeader>
                         <CardDescription>
